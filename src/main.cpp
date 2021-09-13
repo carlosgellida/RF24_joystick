@@ -24,6 +24,22 @@ float payload = 0.0;
 
 unsigned long timming ; 
 
+void InitialiceRadio() {
+      radio.begin();
+      radioNumber = 0; 
+      radio.setPALevel(RF24_PA_MAX);  // RF24_PA_MAX is default.
+      radio.setRetries(1, 5); 
+      radio.setPayloadSize(sizeof(payload));
+      radio.openWritingPipe(address[radioNumber]);
+      radio.openReadingPipe(1, address[!radioNumber]); 
+        if (role) {
+         radio.stopListening();  // put radio in TX mode
+        } else {
+          radio.startListening(); // put radio in RX mode
+        }
+      timming = micros(); 
+}
+
 void setup() {
 
   Serial.begin(115200);
@@ -36,10 +52,6 @@ void setup() {
     Serial.println(F("radio hardware is not responding!!"));
     while (1) {} // hold in infinite loop
   }
-
-  // print example's introductory prompt
-  Serial.println(F("RF24/examples/GettingStarted"));
-
   /*// To set the radioNumber via the Serial monitor on startup
   Serial.println(F("Which radio is this? Enter '0' or '1'. Defaults to '0'"));
   while (!Serial.available()) {
@@ -58,7 +70,9 @@ void setup() {
   // Set the PA Level low to try preventing power supply related problems
   // because these examples are likely run with nodes in close proximity to
   // each other.
-  radio.setPALevel(RF24_PA_LOW);  // RF24_PA_MAX is default.
+  radio.setPALevel(RF24_PA_MAX);  // RF24_PA_MAX is default.
+
+  radio.setRetries(1, 3); 
 
   // save on transmission time by setting the radio to only transmit the
   // number of bytes we need to transmit a float
@@ -100,7 +114,6 @@ void loop() {
       Serial.print(timming);                 // print the timer result
       Serial.print(F(" us. Sent: "));
       Serial.println(payload);                               // print payload sent
-      
       role = !role  ;
       radio.startListening();                                    // increment float payload
       timming = micros(); 
@@ -108,6 +121,8 @@ void loop() {
       Serial.println(F("Transmission failed or timed out")); // payload was not delivered
       role = !role  ;
       radio.startListening();
+      timming = micros();
+      //Sí no puedes enviar comienza a escuchar
     }
 
     // to make this example readable in the serial monitor
@@ -131,24 +146,5 @@ void loop() {
     }
   } // role
 
-  /*if (Serial.available()) {
-    // change the role via the serial monitor
-
-    char c = toupper(Serial.read());
-    if (c == 'T' && !role) {
-      // Become the TX node
-
-      role = true;
-      Serial.println(F("*** CHANGING TO TRANSMIT ROLE -- PRESS 'R' TO SWITCH BACK"));
-      radio.stopListening();
-
-    } else if (c == 'R' && role) {
-      // Become the RX node
-
-      role = false;
-      Serial.println(F("*** CHANGING TO RECEIVE ROLE -- PRESS 'T' TO SWITCH BACK"));
-      radio.startListening();
-    }
-  }*/
 
 } // loop
