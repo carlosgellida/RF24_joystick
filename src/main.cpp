@@ -1,6 +1,9 @@
 #include <SPI.h>
 #include "printf.h"
 #include "RF24.h"
+#include <BasicLinearAlgebra.h>
+
+using namespace BLA;
 
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(14, 12); // using pin 7 for the CE pin, and pin 8 for the CSN pin
@@ -24,59 +27,55 @@ float payload = 0.0;
 
 unsigned long timming ; 
 
-void InitialiceRadio() {
-      radio.begin();
-      radioNumber = 0; 
-      radio.setPALevel(RF24_PA_MAX);  // RF24_PA_MAX is default.
-      radio.setRetries(1, 5); 
-      radio.setPayloadSize(sizeof(payload));
-      radio.openWritingPipe(address[radioNumber]);
-      radio.openReadingPipe(1, address[!radioNumber]); 
-        if (role) {
-         radio.stopListening();  // put radio in TX mode
-        } else {
-          radio.startListening(); // put radio in RX mode
-        }
-      timming = micros(); 
+bool sended, recieved; 
+
+Matrix<4, 1> qDeseado = {1, 1, 1, 1}; 
+
+Matrix<4, 1> qCurrent = {1, 1, 1, 1}; 
+
+/*String arr2str(Matrix<4, 1> arr){
+  String str ;
+  str = String(arr(0)) + ',' + String(arr(1)) + ',' + String(arr(2)) + ',' + String(arr(3));
+  return str; 
 }
 
-void setup() {
+Matrix<4, 1> str2arr(String str){
+  Matrix<4, 1> arr ; 
+  int j=0; 
+  for(int i=0; i < 4; i++){
+    String str2 ; 
+    while(true){
+      if(str[j] != ',' && (j < 16)){
+        //Serial.println(str[j]); 
+        str2 = str2 + str[j] ; 
+        j++ ; 
+      } else {
+        j++ ; 
+        break ; 
+      }
+    } //while
+    //Serial.println(str2); 
+    arr(i) = str2.toFloat() ; 
+  } //for
+  return arr; 
+}*/
 
-  Serial.begin(115200);
-  while (!Serial) {
-    // some boards need to wait to ensure access to serial over USB
-  }
-
-  // initialize the transceiver on the SPI bus
+void InitialiceRadio() {
+      // initialize the transceiver on the SPI bus
   if (!radio.begin()) {
     Serial.println(F("radio hardware is not responding!!"));
     while (1) {} // hold in infinite loop
   }
-  /*// To set the radioNumber via the Serial monitor on startup
-  Serial.println(F("Which radio is this? Enter '0' or '1'. Defaults to '0'"));
-  while (!Serial.available()) {
-    // wait for user input
-  }
-  char input = Serial.parseInt();
-  radioNumber = input == 1;
-  Serial.print(F("radioNumber = "));
-  Serial.println((int)radioNumber);*/
 
   radioNumber = 0; 
 
-  // role variable is hardcoded to RX behavior, inform the user of this
-  //Serial.println(F("*** PRESS 'T' to begin transmitting to the other node"));
-
-  // Set the PA Level low to try preventing power supply related problems
-  // because these examples are likely run with nodes in close proximity to
-  // each other.
   radio.setPALevel(RF24_PA_MAX);  // RF24_PA_MAX is default.
 
-  radio.setRetries(1, 3); 
+  radio.setRetries(1, 6); 
 
   // save on transmission time by setting the radio to only transmit the
   // number of bytes we need to transmit a float
-  radio.setPayloadSize(sizeof(payload)); // float datatype occupies 4 bytes
+  radio.setPayloadSize(sizeof(qDeseado)); // float datatype occupies 4 bytes
 
   // set the TX address of the RX node into the TX pipe
   radio.openWritingPipe(address[radioNumber]);     // always uses pipe 0
@@ -90,61 +89,82 @@ void setup() {
   } else {
     radio.startListening(); // put radio in RX mode
   }
-
-  // For debugging info
-  // printf_begin();             // needed only once for printing details
-  // radio.printDetails();       // (smaller) function that prints raw register values
-  // radio.printPrettyDetails(); // (larger) function that prints human readable data
-
   timming = micros(); 
-} // setup
+}
 
-void loop() {
-
+bool send(Matrix<4, 1> qDeseado){
+  bool sended = false; 
   if (role) {
+    //String qDeseadoString = arr2str(qDeseado); 
     // This device is a TX node
     payload += 0.01;   
     //unsigned long start_timer = micros();                    // start the timer
-    bool report = radio.write(&payload, sizeof(float));      // transmit & save the report
-    //unsigned long end_timer = micros();                      // end the timer
+    //bool report = radio.write(&qDeseadoString, sizeof(qDeseadoString));      // transmit & save the report
+    bool report = radio.write(&qDeseado, sizeof(qDeseado)); 
 
     if (report) {
       Serial.print(F("Transmission successful! "));          // payload was delivered
       Serial.print(F("current time = "));
       Serial.print(timming);                 // print the timer result
       Serial.print(F(" us. Sent: "));
-      Serial.println(payload);                               // print payload sent
+      //Serial.println(qDeseadoString);                               // print payload sent
+      Serial << qDeseado << '\n'; 
       role = !role  ;
       radio.startListening();                                    // increment float payload
       timming = micros(); 
+      sended = true; 
     } else {
       Serial.println(F("Transmission failed or timed out")); // payload was not delivered
-      role = !role  ;
-      radio.startListening();
-      timming = micros();
+      role = !role; 
+      InitialiceRadio();
+      
+      //radio.startListening();
+      //timming = micros();
       //Sí no puedes enviar comienza a escuchar
     }
 
-    // to make this example readable in the serial monitor
-    //delay(1000);  // slow transmissions down by 1 second
+  } 
+  return sended; 
+} 
 
-  } else {
+
+bool recieve(Matrix<4, 1> &qCurrent){
+  bool recieved = false; 
+  if(!role) {
+    //String qCurrenString ; 
     // This device is a RX node
-
     uint8_t pipe;
     if (radio.available(&pipe)) {             // is there a payload? get the pipe number that recieved it
       uint8_t bytes = radio.getPayloadSize(); // get the size of the payload
-      radio.read(&payload, bytes);            // fetch payload from FIFO
+    
+      radio.read(&qCurrent, bytes);            // fetch payload from FIFO
+      //qCurrent = str2arr(qCurrenString); 
       Serial.print(F("Received "));
       Serial.print(bytes);                    // print the size of the payload
-      Serial.print(F(" bytes on pipe "));
+      Serial.print(F(" Bytes on pipe "));
       Serial.print(pipe);                     // print the pipe number
       Serial.print(F(": "));
-      Serial.println(payload);                // print the payload's value
+      //Serial.println(qCurrenString); 
+      Serial << qCurrent << '\n'; 
       role = !role  ;
+      recieved = true; 
       radio.stopListening();
     }
   } // role
+  return recieved; 
+}
 
+void setup() {
+
+  Serial.begin(115200);
+
+  InitialiceRadio();
+} // setup
+
+void loop() {
+
+  recieved = recieve(qCurrent); 
+
+  sended = send(qDeseado) ; 
 
 } // loop
