@@ -71,11 +71,15 @@ void InitialiceRadio() {
 
   radio.setPALevel(RF24_PA_MAX);  // RF24_PA_MAX is default.
 
-  radio.setRetries(1, 6); 
+  radio.setRetries(1, 5); 
 
   // save on transmission time by setting the radio to only transmit the
   // number of bytes we need to transmit a float
   radio.setPayloadSize(sizeof(qDeseado)); // float datatype occupies 4 bytes
+
+  radio.setChannel(2475); 
+
+  radio.setDataRate(RF24_2MBPS); 
 
   // set the TX address of the RX node into the TX pipe
   radio.openWritingPipe(address[radioNumber]);     // always uses pipe 0
@@ -117,8 +121,7 @@ bool send(Matrix<4, 1> qDeseado){
       Serial.println(F("Transmission failed or timed out")); // payload was not delivered
       role = !role; 
       InitialiceRadio();
-      
-      //radio.startListening();
+      radio.startListening();
       //timming = micros();
       //Sí no puedes enviar comienza a escuchar
     }
