@@ -1,10 +1,10 @@
 #include <BasicLinearAlgebra.h>
 using namespace BLA;
-#include <RadioGamepad.h>
+#include <RadioGamepad2.h>
 
-Matrix<4, 1> qDeseado = {1, 1, 1, 1}; 
+Matrix<4, 1> qDeseado = {3, 3, 3, 3}; 
 
-Matrix<4, 1> qCurrent = {1, 1, 1, 1}; 
+Matrix<4, 1> qCurrent = {3, 3, 3, 3}; 
 
 
 void setup() {
